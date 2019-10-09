@@ -1,0 +1,110 @@
+image: registry.gitlab.com/aaronrenner/docker-asdf:bionic
+
+variables:
+  LANG: C.UTF-8
+  MIX_HOME: "$CI_PROJECT_DIR/.mix"
+  ASDF_DATA_DIR: "$CI_PROJECT_DIR/.asdf"
+
+stages:
+  - install
+  - build
+  - test
+
+before_script:
+  - . ~/.asdf/asdf.sh
+  # Ensure the timestamp doesn't change from when the repo was
+  # originally checked out, so we don't have to recompile for each job.
+  - |
+    if [ -f ".cloned_at" ]; then
+      git ls-files | xargs touch --date "$(cat .cloned_at)";
+    fi
+
+install_asdf_env_and_deps:
+  stage: install
+  variables:
+    NODEJS_CHECK_SIGNATURES: "no"
+  cache:
+    key: install
+    paths:
+      - $ASDF_DATA_DIR
+      - $MIX_HOME
+  script:
+    - asdf plugin-add erlang || true
+    - asdf plugin-add elixir || true
+    - asdf plugin-add nodejs || true
+    # Have to run twice due to: https://github.com/asdf-vm/asdf-erlang/issues/57
+    - asdf install && asdf install
+    # Setting up elixir and erlang
+    - mix local.hex --force
+    - mix local.rebar --force
+    # Cache the timestamp the repo was originally checked out, so it can
+    # be set back to this in later jobs and allows us to skip unnecessary
+    # recompiles.
+    - date "+%Y-%m-%d %H:%M:%S" -r README.md > .cloned_at
+  artifacts:
+    expire_in: 2 hrs
+    paths:
+      - $ASDF_DATA_DIR
+      - $MIX_HOME
+      - .cloned_at
+
+
+.build:
+  stage: build
+  variables:
+    BUILD_CACHE_VERSION: 1
+  cache:
+    key: $CI_JOB_NAME-$BUILD_CACHE_VERSION
+    paths:
+      - "_build"
+      - "deps"
+  script:
+    - mix do deps.get, compile --warnings-as-errors
+  dependencies:
+    - install_asdf_env_and_deps
+  artifacts:
+    expire_in: 2 hrs
+    paths:
+      - "_build"
+      - "deps"
+
+build:dev:
+  extends: .build
+
+build:test:
+  extends: .build
+  variables:
+    MIX_ENV: test
+
+unit_tests:
+  stage: test
+  script: mix test
+  dependencies:
+    - install_asdf_env_and_deps
+    - build:test
+
+linters:
+  stage: test
+  script:
+    - mix format --check-formatted
+    - mix credo --strict
+    # Check for unused dependencies
+    - mix deps.unlock --unused && git diff --exit-code
+  dependencies:
+    - install_asdf_env_and_deps
+    - build:dev
+
+dialyzer:
+  stage: test
+  variables:
+    DIALYZER_CACHE_VERSION: 1
+  script: mix dialyzer --format short
+  cache:
+    key: $CI_JOB_NAME-$DIALYZER_CACHE_VERSION
+    paths:
+      - "_build/dev/*.plt"
+      - "_build/dev/*.plt.hash"
+      - $MIX_HOME/*.plt
+  dependencies:
+    - install_asdf_env_and_deps
+    - build:dev

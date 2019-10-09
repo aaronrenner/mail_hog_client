@@ -2,6 +2,8 @@
 
 **This library is a work in progress.**
 
+[![pipeline status](https://gitlab.com/aaronrenner/mail_hog_client/badges/master/pipeline.svg)](https://gitlab.com/aaronrenner/mail_hog_client/commits/master)
+
 API client for [MailHog](https://github.com/mailhog/MailHog).
 
 ## Installation
