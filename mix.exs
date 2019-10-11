@@ -22,9 +22,13 @@ defmodule MailHogClient.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
+      {:tesla, "~> 1.2.0"},
+      {:hackney, "~> 1.14.0"},
+      {:jason, ">= 1.0.0"},
       {:credo, "~> 1.1.0", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.0.0-rc.7", only: [:dev], runtime: false},
-      {:ex_doc, "~> 0.20", only: :docs}
+      {:ex_doc, "~> 0.20", only: :docs},
+      {:mailman, "~> 0.4.2", only: :test}
     ]
   end
 
